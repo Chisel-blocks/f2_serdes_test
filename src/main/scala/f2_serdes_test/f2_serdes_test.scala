@@ -60,7 +60,7 @@ class f2_serdes_test (
     io.from_serdes.ready:=false.B
   
     // Need a memory with write from scan, read to scan, and 
-    val mem = Mem(memsize, new iofifosigs(n=n,users=users))
+    val mem = SyncReadMem(memsize, new iofifosigs(n=n,users=users))
    
     /**
      OBS: The read and write modes of the scan_test_mem may be discrermpant
