@@ -63,7 +63,8 @@ class f2_serdes_test (
     // Need a memory with write from scan, read to scan, and 
     // To map this to SRAM, write address must be syncroniozed
     // All addressing through write_addri, enables throuhg write_en
-    val mem = Module (new memblock(n=n,users=users,memsize=memsize)).io
+    val proto=new iofifosigs(n=16, users=4)
+    val mem = Module (new memblock(proto,memsize=memsize)).io
     //Defaults
     mem.write_val:=iofifozero
     mem.write_addr:=0.U.asTypeOf(mem.write_addr)
