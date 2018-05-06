@@ -9,6 +9,7 @@ import dsptools._
 import dsptools.numbers._
 import f2_rx_dsp._
 import edge_detector._
+import memblock._ 
 
 class serdes_test_scan_ios( val n: Int, val users: Int, val memsize: Int) 
     extends Bundle {
@@ -60,10 +61,16 @@ class f2_serdes_test (
     io.from_serdes.ready:=false.B
   
     // Need a memory with write from scan, read to scan, and 
-    val mem = Mem(memsize, new iofifosigs(n=n,users=users))
-   
+    // To map this to SRAM, write address must be syncroniozed
+    // All addressing through write_addri, enables throuhg write_en
+    val mem = Module (new memblock(n=n,users=users,memsize=memsize)).io
+    //Defaults
+    mem.write_val:=iofifozero
+    mem.write_addr:=0.U.asTypeOf(mem.write_addr)
+    mem.read_addr:=0.U.asTypeOf(mem.read_addr)
+
     /**
-     OBS: The read and write modes of the scan_test_mem may be discrermpant
+     OBS: The read and write modes of the scan_test_mem may be discrepant
      It is up to programmer if the mode combinations are rational
     **/
    
@@ -117,13 +124,15 @@ class f2_serdes_test (
 
     }.elsewhen(write_state===scan) {
         when( io.scan.write_en===true.B) { 
-            mem.write(io.scan.write_address,io.scan.write_value) 
+            mem.write_addr:=io.scan.write_address
+            mem.write_val:=io.scan.write_value 
         }
         write_state:=w_write_mode
     }.elsewhen(write_state===fill) {
         io.from_serdes.ready:=true.B
         when ( write_count < memsize) {
-            mem.write(write_count,io.from_serdes.bits)
+            mem.write_addr:=write_count
+            mem.write_val:=io.from_serdes.bits 
             write_count:=write_count+1.U
             write_state:=write_state
         }.otherwise {
@@ -134,19 +143,24 @@ class f2_serdes_test (
         io.from_serdes.ready:=true.B
         when (read_state === loop) {
             when ( write_count < memsize) {
-                io.to_serdes.valid:=RegNext(true.B)
-                io.to_serdes.bits:=RegNext(mem.read(write_count+1.U))
-                mem.write(write_count,io.from_serdes.bits)
+                io.to_serdes.valid:=RegNext(RegNext(true.B))
+                mem.read_addr:=write_count+1.U
+                io.to_serdes.bits:=mem.read_val
+                mem.write_addr:=write_count
+                mem.write_val:=io.from_serdes.bits 
                 write_count:=write_count+1.U
             }.otherwise {
-                io.to_serdes.valid:=RegNext(true.B)
-                io.to_serdes.bits:=RegNext(mem.read(write_count+1.U))
-                mem.write(write_count,io.from_serdes.bits)
+                io.to_serdes.valid:=RegNext(RegNext(true.B))
+                mem.read_addr:=write_count+1.U
+                io.to_serdes.bits:=mem.read_val
+                mem.write_addr:=write_count
+                mem.write_val:=io.from_serdes.bits 
                 write_count:=0.U(memsize.W)
             }
         }.otherwise {
             when ( write_count < memsize) {
-                mem.write(write_count,io.from_serdes.bits)
+                mem.write_addr:=write_count
+                mem.write_val:=io.from_serdes.bits 
                 write_count:=write_count+1.U
             }.otherwise {
                 write_count:=0.U(memsize.W)
@@ -200,13 +214,15 @@ class f2_serdes_test (
         }
     }.elsewhen(read_state===scan) {
         when( io.scan.read_en===true.B) { 
-            io.scan.read_value:=RegNext(mem.read(io.scan.read_address)) 
+            mem.read_addr:=io.scan.read_address
+            io.scan.read_value:=mem.read_val 
         }
         read_state:=read_state
     }.elsewhen(read_state===flush) {
         when ( read_count < memsize) {
-            io.to_serdes.valid:=RegNext(true.B)
-            io.to_serdes.bits :=RegNext(mem.read(read_count))
+            mem.read_addr:=read_count
+            io.to_serdes.valid:=RegNext(RegNext(true.B))
+            io.to_serdes.bits :=mem.read_val
             read_count:=read_count+1.U
             read_state:=read_state
         }.otherwise {
@@ -220,13 +236,13 @@ class f2_serdes_test (
             read_state := w_read_mode 
         }.otherwise {
             when ( read_count < memsize) {
-                io.to_serdes.valid:=RegNext(true.B)
-                io.to_serdes.bits:=RegNext(mem.read(read_count))
+                io.to_serdes.valid:=RegNext(RegNext(true.B))
+                io.to_serdes.bits :=mem.read_val
                 read_count:=read_count+1.U
                 read_state:=read_state
             }.otherwise {
-                io.to_serdes.valid:=RegNext(true.B)
-                io.to_serdes.bits:=RegNext(mem.read(read_count))
+                io.to_serdes.valid:=RegNext(RegNext(true.B))
+                io.to_serdes.bits :=mem.read_val
                 read_count:=0.U(memsize.W)
                 read_state:=read_state
             }
