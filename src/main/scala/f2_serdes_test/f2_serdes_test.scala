@@ -11,37 +11,37 @@ import f2_rx_dsp._
 import edge_detector._
 import memblock._ 
 
-class serdes_test_scan_ios( val n: Int, val users: Int, val memsize: Int) 
+class serdes_test_scan_ios[T<: Data]( proto: T, val memsize: Int) 
     extends Bundle {
         val write_mode   = Input(UInt(2.W))
         val write_address= Input(UInt(log2Ceil(memsize).W))
-        val write_value  = Input(new iofifosigs(n=n,users=users))
+        val write_value  = Input(proto)
         val write_en     = Input(Bool())
         val read_mode    = Input(UInt(2.W))
         val read_address = Input(UInt(log2Ceil(memsize).W))
-        val read_value   = Output(new iofifosigs(n=n,users=users))
+        val read_value   = Output(proto)
         val read_en      = Input(Bool())
     }
 
-class f2_serdes_test_io(
-        val n        : Int=16,
-        val users    : Int=4,
+class f2_serdes_test_io[T <: Data](
+        proto        : T,
         val memsize  : Int=scala.math.pow(2,13).toInt
     ) extends Bundle {
-    val scan         =  new serdes_test_scan_ios(n=n,users=users,memsize=memsize)
-    val to_serdes    =  DecoupledIO( new iofifosigs(n=n,users=users))
-    val from_serdes  =  Flipped(DecoupledIO( new iofifosigs(n=n,users=users)))
+    val scan         =  new serdes_test_scan_ios(proto,memsize=memsize)
+    val to_serdes    =  DecoupledIO(proto)
+    val from_serdes  =  Flipped(DecoupledIO(proto))
+    override def cloneType = (new f2_serdes_test_io(proto,memsize)).asInstanceOf[this.type]
 }
 
-class f2_serdes_test (
+class f2_serdes_test[T <:Data] (
+        proto            : T,
         n                : Int=16, 
         users            : Int=4,
         memsize          : Int=scala.math.pow(2,13).toInt
     ) extends Module {
     val io = IO( 
         new f2_serdes_test_io(
-            n         = n, 
-            users     = users,
+            proto     = proto,
             memsize   = memsize 
         )
     )
@@ -63,7 +63,7 @@ class f2_serdes_test (
     // Need a memory with write from scan, read to scan, and 
     // To map this to SRAM, write address must be syncroniozed
     // All addressing through write_addri, enables throuhg write_en
-    val proto=new iofifosigs(n=16, users=4)
+    //val proto=new iofifosigs(n=16, users=4)
     val mem = Module (new memblock(proto,memsize=memsize)).io
     //Defaults
     mem.write_val:=iofifozero
@@ -258,7 +258,8 @@ class f2_serdes_test (
 }
 //This gives you verilog
 object f2_serdes_test extends App {
-  chisel3.Driver.execute(args, () => new f2_serdes_test(n=16, users=4, memsize=scala.math.pow(2,13).toInt ))
+  val proto=new iofifosigs(n=16, users=4)
+  chisel3.Driver.execute(args, () => new f2_serdes_test(proto, n=16, users=4, memsize=scala.math.pow(2,13).toInt ))
 }
 
 
