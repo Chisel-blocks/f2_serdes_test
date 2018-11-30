@@ -30,7 +30,7 @@ class f2_serdes_test_io[T <: Data](
     val scan         =  new serdes_test_scan_ios(proto,memsize=memsize)
     val to_serdes    =  DecoupledIO(proto)
     val from_serdes  =  Flipped(DecoupledIO(proto))
-    override def cloneType = (new f2_serdes_test_io(proto,memsize)).asInstanceOf[this.type]
+    override def cloneType = (new f2_serdes_test_io(proto.cloneType,memsize)).asInstanceOf[this.type]
 }
 
 class f2_serdes_test[T <:Data] (
