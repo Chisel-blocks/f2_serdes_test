@@ -64,6 +64,8 @@ class f2_serdes_test[T <:Data] (
     infifo.enq_clock:=clock
     infifo.enq_reset:=reset
     infifo.deq_reset:=reset
+    //Tis is to ensure that buffer is never full
+    //Dropping of samples handled by valid
     val outfifo = Module(new AsyncQueue(proto.cloneType,depth=fifodepth)).io
     outfifo.deq<>io.to_serdes
     outfifo.enq_clock:=clock
@@ -75,7 +77,7 @@ class f2_serdes_test[T <:Data] (
     io.scan.read_value:=iofifozero
     outfifo.enq.bits:=iofifozero
     outfifo.enq.valid:=true.B
-    infifo.deq.ready:=false.B
+    infifo.deq.ready:=true.B
 
     // Need a memory with write from scan, read to scan, and
     // To map this to SRAM, write address must be syncroniozed
@@ -110,7 +112,6 @@ class f2_serdes_test[T <:Data] (
         w_write_mode := scan
     } .elsewhen (io.scan.write_mode===2.U ) {
         w_write_mode:=fill
-        //fill_edge.A:=true.B
     } .elsewhen (io.scan.write_mode===3.U ) {
         w_write_mode := loop
     } .otherwise {
@@ -135,10 +136,12 @@ class f2_serdes_test[T <:Data] (
             write_state:=fill
         }.elsewhen{ write_loop_edge.rising===true.B}{
             write_state:=loop
-        }.otherwise{
-            write_state:=w_write_mode
+        }.elsewhen{w_write_mode===scan } {
+            write_state:=scan 
+        }.otherwise {
+            write_state:=zero 
         }
-        infifo.deq.ready:=false.B
+        //infifo.deq.ready:=false.B
         write_count:=0.U(memsize.W)
 
     }.elsewhen(write_state===scan) {
@@ -148,23 +151,23 @@ class f2_serdes_test[T <:Data] (
         }
         write_state:=w_write_mode
     }.elsewhen(write_state===fill) {
-        infifo.deq.ready:=true.B
+        //infifo.deq.ready:=true.B
         when ( (write_count < memsize) && infifo.deq.valid===true.B ) {
             mem.write_addr:=write_count
             mem.write_val:=infifo.deq.bits
             write_count:=write_count+1.U
-            write_state:=write_state
+            write_state:=fill
         }.elsewhen ( (write_count < memsize) && infifo.deq.valid===false.B ) {
             mem.write_addr:=write_count
             mem.write_val:=infifo.deq.bits
             write_count:=write_count
-            write_state:=write_state
+            write_state:=fill
         }.otherwise {
             write_count:=0.U(memsize.W)
             write_state := zero //Return to zero state after fill
         }
     }.elsewhen(write_state === loop ) {
-        infifo.deq.ready:=true.B
+        //infifo.deq.ready:=true.B
         write_state := w_write_mode
         //cant't write faster than we read
         when (read_state === loop) {
@@ -205,7 +208,7 @@ class f2_serdes_test[T <:Data] (
             //We should not end up here
             write_count:=0.U(memsize.W)
             write_state := zero
-            infifo.deq.ready:=false.B
+            //infifo.deq.ready:=false.B
     }
 
     // Read mode starts here
@@ -231,8 +234,8 @@ class f2_serdes_test[T <:Data] (
 
     //Read state machine
     val read_count=RegInit(0.U(memsize.W))
-    when( w_read_mode===flush ) { flush_edge.A===true.B }.otherwise { flush_edge.A===false.B }
-    when( w_read_mode===loop ) { read_loop_edge.A===true.B }.otherwise { read_loop_edge.A===false.B }
+    when( w_read_mode===flush ) { flush_edge.A:=true.B }.otherwise { flush_edge.A:=false.B }
+    when( w_read_mode===loop ) { read_loop_edge.A:=true.B }.otherwise { read_loop_edge.A:=false.B }
     when (read_state===zero) {
         when { flush_edge.rising===true.B }{
             read_count:=0.U(memsize.W)
@@ -240,6 +243,8 @@ class f2_serdes_test[T <:Data] (
         }.elsewhen{ read_loop_edge.rising===true.B}{
             read_count:=1.U(memsize.W)
             read_state:=loop
+        }.elsewhen{ w_read_mode===scan}{
+            read_state:=scan
         }.otherwise{
             read_count:=0.U(memsize.W)
             read_state:=w_read_mode
@@ -257,7 +262,7 @@ class f2_serdes_test[T <:Data] (
             outfifo.enq.valid:=RegNext(RegNext(true.B))
             outfifo.enq.bits :=mem.read_val
             read_count:=read_count+1.U
-            read_state:=read_state
+            read_state:=flush
         }.otherwise {
             read_count:=0.U(memsize.W)
             read_state := zero //return to zero state
@@ -279,10 +284,9 @@ class f2_serdes_test[T <:Data] (
             }
         }
     }.otherwise{
+            // Otherwise we return to zero state
             read_count:=0.U(memsize.W)
-            //We should not end up here
-            // Controlled by scan
-            read_state := w_read_mode
+            read_state := zero
             outfifo.enq.valid:=false.B
     }
 
