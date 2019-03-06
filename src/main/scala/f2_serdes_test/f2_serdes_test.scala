@@ -123,7 +123,7 @@ class f2_serdes_test[T <:Data] (
     val read_state= RegInit(zero)
 
     //Write state machine
-    val write_count=RegInit(0.U(memsize.W))
+    val write_count=RegInit(0.U(log2Ceil(memsize).W))
     when( w_write_mode===fill ) { fill_edge.A:=true.B }.otherwise { fill_edge.A:=false.B }
     when( w_write_mode===loop ) {
         write_loop_edge.A:=true.B
@@ -142,7 +142,7 @@ class f2_serdes_test[T <:Data] (
             write_state:=zero 
         }
         //infifo.deq.ready:=false.B
-        write_count:=0.U(memsize.W)
+        write_count:=0.U
 
     }.elsewhen(write_state===scan) {
         when( io.scan.write_en===true.B) {
@@ -155,16 +155,17 @@ class f2_serdes_test[T <:Data] (
         when ( (write_count < memsize) && infifo.deq.valid===true.B ) {
             mem.write_addr:=write_count
             mem.write_val:=infifo.deq.bits
-            write_count:=write_count+1.U
-            write_state:=fill
-        }.elsewhen ( (write_count < memsize) && infifo.deq.valid===false.B ) {
-            mem.write_addr:=write_count
-            mem.write_val:=infifo.deq.bits
-            write_count:=write_count
-            write_state:=fill
+            when ( write_count === memsize.asUInt-1.U) {
+                write_count:=0.U
+                write_state:=zero
+            }.otherwise {
+                write_state:=fill
+                write_count:=write_count+1.U
+            }
         }.otherwise {
-            write_count:=0.U(memsize.W)
+            write_count:=0.U
             write_state := zero //Return to zero state after fill
+                               // or if fill fails
         }
     }.elsewhen(write_state === loop ) {
         //infifo.deq.ready:=true.B
@@ -172,43 +173,61 @@ class f2_serdes_test[T <:Data] (
         //cant't write faster than we read
         when (read_state === loop) {
             //read state update by read state machine
-            when ( (write_count < memsize.asUInt) && (outfifo.enq.ready===true.B)) {
-                outfifo.enq.valid:=RegNext(RegNext(true.B))
-                mem.read_addr:=write_count+1.U
-                outfifo.enq.bits:=mem.read_val
-                mem.write_addr:=write_count
-                mem.write_val:=infifo.deq.bits
-                write_count:=write_count+1.U
-            }.elsewhen((write_count === memsize.asUInt) && (outfifo.enq.ready===true.B)){
-                outfifo.enq.valid:=RegNext(RegNext(true.B))
-                mem.read_addr:=0.U
-                outfifo.enq.bits:=mem.read_val
-                mem.write_addr:=write_count
-                mem.write_val:=infifo.deq.bits
-                write_count:=0.U(memsize.W)
+            when ( (write_count < memsize) 
+                    && (outfifo.enq.ready===true.B) 
+                    && (infifo.deq.valid===true.B)
+                ) {
+                when(write_count === memsize.asUInt-1.U) { 
+                    outfifo.enq.valid:=RegNext(RegNext(true.B))
+                    mem.read_addr:=write_count-1.U
+                    outfifo.enq.bits:=mem.read_val
+                    mem.write_addr:=write_count
+                    mem.write_val:=infifo.deq.bits
+                    write_count:=0.U
+                }.otherwise {
+                    outfifo.enq.valid:=RegNext(RegNext(true.B))
+                    mem.read_addr:=write_count-1.U
+                    outfifo.enq.bits:=mem.read_val
+                    mem.write_addr:=write_count
+                    mem.write_val:=infifo.deq.bits
+                    write_count:=write_count+1.U
+                }
             }.otherwise {
-                outfifo.enq.valid:=RegNext(RegNext(false.B))
-                mem.read_addr:=write_count+1.U
+                //Loop does not progreess if fifo not ready
+                // Safe, because we can exit the state by
+                // changing write_state
+                outfifo.enq.valid:=RegNext(RegNext(true.B))
+                mem.read_addr:=write_count-1.U
                 outfifo.enq.bits:=mem.read_val
                 mem.write_addr:=write_count
                 mem.write_val:=infifo.deq.bits
                 write_count:=write_count
             }
         }.otherwise {
-            when ( (write_count < memsize.asUInt) && (outfifo.enq.ready===true.B)) {
-                mem.write_addr:=write_count
-                mem.write_val:=infifo.deq.bits
-                write_count:=write_count+1.U
+            when ( (write_count < memsize ) 
+                    && (infifo.deq.valid===true.B)
+                ) {
+                when(write_count === memsize.asUInt-1.U) { 
+                    mem.write_addr:=write_count
+                    mem.write_val:=infifo.deq.bits
+                    write_count:=0.U
+                }.otherwise {
+                    mem.write_addr:=write_count
+                    mem.write_val:=infifo.deq.bits
+                    write_count:=write_count+1.U
+                }
             }.otherwise {
-                write_count:=0.U(memsize.W)
-                write_count:=write_count+1.U
+                //Loop does not progreess if fifo not ready
+                // Safe, because we can exit the state by
+                // changing write_state
+                //Do not write or increase address if dequeue is not valid
+                write_count:=write_count
             }
         }
     }.otherwise{
             //We should not end up here
-            write_count:=0.U(memsize.W)
+            write_count:=0.U
             write_state := zero
-            //infifo.deq.ready:=false.B
     }
 
     // Read mode starts here
@@ -233,20 +252,20 @@ class f2_serdes_test[T <:Data] (
     }
 
     //Read state machine
-    val read_count=RegInit(0.U(memsize.W))
+    val read_count=RegInit(0.U(log2Ceil(memsize).W))
     when( w_read_mode===flush ) { flush_edge.A:=true.B }.otherwise { flush_edge.A:=false.B }
     when( w_read_mode===loop ) { read_loop_edge.A:=true.B }.otherwise { read_loop_edge.A:=false.B }
     when (read_state===zero) {
         when { flush_edge.rising===true.B }{
-            read_count:=0.U(memsize.W)
+            read_count:=0.U
             read_state:=flush
         }.elsewhen{ read_loop_edge.rising===true.B}{
-            read_count:=1.U(memsize.W)
+            read_count:=0.U
             read_state:=loop
         }.elsewhen{ w_read_mode===scan}{
             read_state:=scan
         }.otherwise{
-            read_count:=0.U(memsize.W)
+            read_count:=0.U
             read_state:=w_read_mode
             outfifo.enq.valid:=false.B
         }
@@ -257,39 +276,58 @@ class f2_serdes_test[T <:Data] (
         }
         read_state:=w_read_mode
     }.elsewhen(read_state===flush) {
-        when ( read_count < memsize.asUInt) {
-            mem.read_addr:=read_count
-            outfifo.enq.valid:=RegNext(RegNext(true.B))
-            outfifo.enq.bits :=mem.read_val
-            read_count:=read_count+1.U
-            read_state:=flush
-        }.otherwise {
-            read_count:=0.U(memsize.W)
-            read_state := zero //return to zero state
-        }
-    }.elsewhen(read_state === loop) {
-        read_state:=w_read_mode
-        when(write_state===loop) {
-            //both tasks taken into account in write loop
-            read_count:=0.U(memsize.W)
-        }.otherwise {
-            when ( read_count < memsize.asUInt) {
+        when ((read_count < memsize)
+                && outfifo.enq.ready
+            ) {
+            when ( read_count === memsize.asUInt-1.U ) {
+                mem.read_addr:=read_count
+                outfifo.enq.valid:=RegNext(RegNext(true.B))
+                outfifo.enq.bits :=mem.read_val
+                read_count:=0.U
+                read_state:=zero
+            }.otherwise{
+                mem.read_addr:=read_count
                 outfifo.enq.valid:=RegNext(RegNext(true.B))
                 outfifo.enq.bits :=mem.read_val
                 read_count:=read_count+1.U
+                read_state:=flush
+            }
+        }.otherwise {
+            //The flush should be clean. if not, return to zero state
+            read_count:=0.U
+            read_state := zero //return to zero state
+        }
+    }.elsewhen( read_state === loop) {
+        read_state:=w_read_mode
+        when(write_state===loop) {
+            //both addresses taken into account in write loop
+            read_count:=0.U
+        }.otherwise {
+            when ( (read_count < memsize) 
+                && outfifo.enq.ready
+                ) {
+                when ( read_count === memsize.asUInt-1.U ) {
+                    mem.read_addr:=read_count
+                    outfifo.enq.valid:=RegNext(RegNext(true.B))
+                    outfifo.enq.bits :=mem.read_val
+                    read_count:=0.U
+                }.otherwise {
+                    mem.read_addr:=read_count
+                    outfifo.enq.valid:=RegNext(RegNext(true.B))
+                    outfifo.enq.bits :=mem.read_val
+                    read_count:=read_count+1.U
+                }
             }.otherwise {
-                outfifo.enq.valid:=RegNext(RegNext(true.B))
-                outfifo.enq.bits :=mem.read_val
-                read_count:=0.U(memsize.W)
+                //Do not increase counter if fifo not ready
+                read_count:=read_count
             }
         }
     }.otherwise{
             // Otherwise we return to zero state
-            read_count:=0.U(memsize.W)
+            read_count:=0.U
             read_state := zero
             outfifo.enq.valid:=false.B
     }
-
 }
 //This gives you verilog
 object f2_serdes_test extends App {
