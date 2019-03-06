@@ -149,7 +149,11 @@ class f2_serdes_test[T <:Data] (
             mem.write_addr:=io.scan.write_address
             mem.write_val:=io.scan.write_value
         }
-        write_state:=w_write_mode
+        when ( w_write_mode === scan ){
+            write_state:=scan
+        }.otherwise {
+            write_state:=zero
+        }
     }.elsewhen(write_state===fill) {
         //infifo.deq.ready:=true.B
         when ( (write_count < memsize) && infifo.deq.valid===true.B ) {
@@ -168,8 +172,11 @@ class f2_serdes_test[T <:Data] (
                                // or if fill fails
         }
     }.elsewhen(write_state === loop ) {
-        //infifo.deq.ready:=true.B
-        write_state := w_write_mode
+        when ( w_write_mode === loop ){
+            write_state:=loop
+        }.otherwise {
+            write_state:=zero
+        }
         //cant't write faster than we read
         when (read_state === loop) {
             //read state update by read state machine
@@ -195,7 +202,7 @@ class f2_serdes_test[T <:Data] (
             }.otherwise {
                 //Loop does not progreess if fifo not ready
                 // Safe, because we can exit the state by
-                // changing write_state
+                // changing w_write_state
                 outfifo.enq.valid:=RegNext(RegNext(true.B))
                 mem.read_addr:=write_count-1.U
                 outfifo.enq.bits:=mem.read_val
@@ -204,6 +211,7 @@ class f2_serdes_test[T <:Data] (
                 write_count:=write_count
             }
         }.otherwise {
+            // Write looping, read not looping
             when ( (write_count < memsize ) 
                     && (infifo.deq.valid===true.B)
                 ) {
@@ -219,13 +227,14 @@ class f2_serdes_test[T <:Data] (
             }.otherwise {
                 //Loop does not progreess if fifo not ready
                 // Safe, because we can exit the state by
-                // changing write_state
+                // changing w_write_state
                 //Do not write or increase address if dequeue is not valid
                 write_count:=write_count
             }
         }
     }.otherwise{
             //We should not end up here
+            // Default to zero state
             write_count:=0.U
             write_state := zero
     }
@@ -266,7 +275,7 @@ class f2_serdes_test[T <:Data] (
             read_state:=scan
         }.otherwise{
             read_count:=0.U
-            read_state:=w_read_mode
+            read_state:=zero
             outfifo.enq.valid:=false.B
         }
     }.elsewhen(read_state===scan) {
@@ -274,7 +283,12 @@ class f2_serdes_test[T <:Data] (
             mem.read_addr:=io.scan.read_address
             io.scan.read_value:=mem.read_val
         }
-        read_state:=w_read_mode
+        when (w_read_mode === scan) {
+            read_state:=scan
+        }.otherwise {
+            read_state:=zero
+        }
+
     }.elsewhen(read_state===flush) {
         when ((read_count < memsize)
                 && outfifo.enq.ready
@@ -298,7 +312,11 @@ class f2_serdes_test[T <:Data] (
             read_state := zero //return to zero state
         }
     }.elsewhen( read_state === loop) {
-        read_state:=w_read_mode
+        when (w_read_mode === loop) {
+            read_state:=loop
+        }.otherwise {
+            read_state:=zero
+        }
         when(write_state===loop) {
             //both addresses taken into account in write loop
             read_count:=0.U
