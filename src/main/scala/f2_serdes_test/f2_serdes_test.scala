@@ -8,10 +8,9 @@ import chisel3.experimental._
 import dsptools._
 import dsptools.numbers._
 import freechips.rocketchip.util._
-import f2_rx_dsp._
+import f2_signal_definitions.{usersigs, iofifosigs}
 import edge_detector._
 import memblock._
-
 
 class serdes_test_scan_ios[T<: Data]( proto: T, val memsize: Int)
     extends Bundle {
