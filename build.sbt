@@ -91,10 +91,10 @@ libraryDependencies  ++= Seq(
 // Some common deps in BWRC projects, select if needed
 // TODO-how to figure out what version is the current and the best?
 libraryDependencies += "edu.berkeley.cs" %% "dsptools" % "1.1-SNAPSHOT"
+libraryDependencies += "berkeley" %% "rocketchip" % "1.2"
 libraryDependencies += "edu.berkeley.cs" %% "edge_detector" % gitSubmoduleHashSnapshotVersion("edge_detector")
 libraryDependencies += "edu.berkeley.cs" %% "f2_signal_definitions" % gitSubmoduleHashSnapshotVersion("f2_signal_definitions")
 
-//libraryDependencies += "berkeley" %% "rocketchip" % "1.2"
 //libraryDependencies += "edu.berkeley.eecs" %% "ofdm" % "0.1"
 //libraryDependencies += "edu.berkeley.cs" %% "eagle_serdes" % "0.0-SNAPSHOT"
 
