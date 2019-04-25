@@ -1,3 +1,8 @@
+#!/bin/sh
+#Init submodules in this dir, if any
+DIR="$( cd "$( dirname $0 )" && pwd )"
+git submodule update --init
+
 #Dependency satisfied by submodule f2_rx_path
 #Publish local the ones you need
 #cd $DIR/rocket-chip
