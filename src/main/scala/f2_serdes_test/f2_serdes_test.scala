@@ -82,7 +82,10 @@ class f2_serdes_test[T <:Data] (
     // To map this to SRAM, write address must be syncroniozed
     // All addressing through write_addri, enables throuhg write_en
     //val proto=new iofifosigs(n=16, users=4)
-    val mem = Module (new memblock(proto,memsize=memsize)).io
+    // We zpad the output in order to get MULTIPLE OF 37 which
+    // is one of the memory output widths available
+    // users*((16I+16Q)+4userindex)+2rxindex+14=592=16*37
+    val mem = Module (new memblock(proto,memsize=memsize,zpad=14)).io
     //Defaults
     mem.write_val:=iofifozero
     mem.write_addr:=0.U.asTypeOf(mem.write_addr)
@@ -348,8 +351,10 @@ class f2_serdes_test[T <:Data] (
 }
 //This gives you verilog
 object f2_serdes_test extends App {
-  val proto=new iofifosigs(n=16, users=4)
-  chisel3.Driver.execute(args, () => new f2_serdes_test(proto, n=16, users=4, memsize=scala.math.pow(2,13).toInt ))
+  val n=16
+  val users=16
+  val proto=new iofifosigs(n=n, users=users)
+  chisel3.Driver.execute(args, () => new f2_serdes_test(proto, n=n, users=users, memsize=scala.math.pow(2,13).toInt ))
 }
 
 

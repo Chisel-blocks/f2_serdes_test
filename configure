@@ -61,7 +61,6 @@ MODULES= ${MODULES}
 TARGETS = \$(foreach name,\$(MODULES), \$(VERILOGPATH)/\$(name).v)
 #Commands
 SBT=sbt -J-Xmx16G -J-Xss8M
-FIRRTL=java -Xmx16G -Xss8M -cp $FIRRTL_JAR firrtl.Driver
 
 TOUCH=touch -r
 `for i in ${VPATHDIRS}; do
@@ -96,12 +95,10 @@ clean:
 	rm -rf \$(VERILOGPATH)
 	#rm -rf \$(DEPDIR)
 
-#MMOD ?=
-#memmap:
-#	cp \$(VERILOGPATH)/\$(MMOD).v  \$(VERILOGPATH)/\$(MMOD)_unmapped.orig.v
-#	\$(FIRRTL) -td ./verilog -tn \$(MMOD) -i  \$(VERILOGPATH)/\$(MMOD).fir \\
-#    -o \$(VERILOGPATH)/\$(MMOD).v -X verilog  \\
-#    --infer-rw \$(MMOD) --repl-seq-mem -c:\$(MMOD):-o:\$(VERILOGPATH)/\$(MMOD).conf
+MMOD ?= f2_serdes_test
+memmap:
+	cp \$(VERILOGPATH)/\$(MMOD).v  \$(VERILOGPATH)/\$(MMOD)_unmapped.orig.v
+	\$(SBT) 'runMain \$(MMOD).\$(MMOD) -td \$(VERILOGPATH) --infer-rw \$(MMOD) --repl-seq-mem -c:\$(MMOD):-o:\$(VERILOGPATH)/\$(MMOD).conf'
 
 #Generate cleanup recipes for individual modules
 `for i in ${MODULES}; do
