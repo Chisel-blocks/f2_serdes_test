@@ -4,3 +4,6 @@
 [submodule "f2_signal_definitions"]
 	path = f2_signal_definitions
 	url = git@bwrcrepo.eecs.berkeley.edu:fader2/chisel/f2_signal_definitions.git
+[submodule "memblock"]
+	path = memblock
+	url = git@bwrcrepo.eecs.berkeley.edu:fader2/chisel/memblock.git

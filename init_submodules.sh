@@ -22,6 +22,7 @@ git submodule update --init
 SUBMODULES="\
     edge_detector \
     f2_signal_definitions \
+    memblock \
     " 
 for module in $SUBMODULES; do
     cd ${DIR}/${module}
