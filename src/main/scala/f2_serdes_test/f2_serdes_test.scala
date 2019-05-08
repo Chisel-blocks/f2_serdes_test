@@ -49,7 +49,7 @@ class f2_serdes_test[T <:Data] (
     )
     //val z = new usersigzeros(n=n, users=users)
     val userzero   = 0.U.asTypeOf(new usersigs(n=n,users=users))
-    val udatazero  = 0.U.asTypeOf(userzero.data)
+    val udatazero  = 0.U.asTypeOf(userzero.udata)
     val uindexzero = 0.U.asTypeOf(userzero.uindex)
     val iofifozero = 0.U.asTypeOf(new iofifosigs(n=n,users=users))
     val datazero   = 0.U.asTypeOf(iofifozero.data)
@@ -87,6 +87,7 @@ class f2_serdes_test[T <:Data] (
     // users*((16I+16Q)+4userindex)+2rxindex+14=592=16*37
     val mem = Module (new memblock(proto,memsize=memsize,zpad=14)).io
     //Defaults
+    mem.write_en:=false.B
     mem.write_val:=iofifozero
     mem.write_addr:=0.U.asTypeOf(mem.write_addr)
     mem.read_addr:=0.U.asTypeOf(mem.read_addr)
@@ -148,6 +149,7 @@ class f2_serdes_test[T <:Data] (
 
     }.elsewhen(write_state===scan) {
         when( io.scan.write_en===true.B) {
+            mem.write_en:=true.B
             mem.write_addr:=io.scan.write_address
             mem.write_val:=io.scan.write_value
         }
@@ -159,6 +161,7 @@ class f2_serdes_test[T <:Data] (
     }.elsewhen(write_state===fill) {
         //infifo.deq.ready:=true.B
         when ( (write_count < memsize) && infifo.deq.valid===true.B ) {
+            mem.write_en:=true.B
             mem.write_addr:=write_count
             mem.write_val:=infifo.deq.bits
             when ( write_count === memsize.asUInt-1.U) {
@@ -190,6 +193,7 @@ class f2_serdes_test[T <:Data] (
                     outfifo.enq.valid:=RegNext(RegNext(true.B))
                     mem.read_addr:=write_count-1.U
                     outfifo.enq.bits:=mem.read_val
+                    mem.write_en:=true.B
                     mem.write_addr:=write_count
                     mem.write_val:=infifo.deq.bits
                     write_count:=0.U
@@ -197,6 +201,7 @@ class f2_serdes_test[T <:Data] (
                     outfifo.enq.valid:=RegNext(RegNext(true.B))
                     mem.read_addr:=write_count-1.U
                     outfifo.enq.bits:=mem.read_val
+                    mem.write_en:=true.B
                     mem.write_addr:=write_count
                     mem.write_val:=infifo.deq.bits
                     write_count:=write_count+1.U
@@ -208,6 +213,7 @@ class f2_serdes_test[T <:Data] (
                 outfifo.enq.valid:=RegNext(RegNext(true.B))
                 mem.read_addr:=write_count-1.U
                 outfifo.enq.bits:=mem.read_val
+                mem.write_en:=true.B
                 mem.write_addr:=write_count
                 mem.write_val:=infifo.deq.bits
                 write_count:=write_count
@@ -218,10 +224,12 @@ class f2_serdes_test[T <:Data] (
                     && (infifo.deq.valid===true.B)
                 ) {
                 when(write_count === memsize.asUInt-1.U) { 
+                    mem.write_en:=true.B
                     mem.write_addr:=write_count
                     mem.write_val:=infifo.deq.bits
                     write_count:=0.U
                 }.otherwise {
+                    mem.write_en:=true.B
                     mem.write_addr:=write_count
                     mem.write_val:=infifo.deq.bits
                     write_count:=write_count+1.U
