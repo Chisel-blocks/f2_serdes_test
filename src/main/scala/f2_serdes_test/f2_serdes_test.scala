@@ -361,8 +361,15 @@ class f2_serdes_test[T <:Data] (
 object f2_serdes_test extends App {
   val n=16
   val users=16
+  val fifodepth=16
   val proto=new iofifosigs(n=n, users=users)
-  chisel3.Driver.execute(args, () => new f2_serdes_test(proto, n=n, users=users, memsize=scala.math.pow(2,13).toInt ))
+  chisel3.Driver.execute(args, () 
+      => new f2_serdes_test(proto=proto.cloneType, 
+          n=n, 
+          users=users, fifodepth=fifodepth, 
+          memsize=scala.math.pow(2,13).toInt 
+          )
+      )
 }
 
 
