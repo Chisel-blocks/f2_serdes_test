@@ -34,6 +34,13 @@ class f2_serdes_test_io[T <: Data](
     override def cloneType = (new f2_serdes_test_io(proto.cloneType,memsize)).asInstanceOf[this.type]
 }
 
+class memproto[ T <: Data](proto: T, val zpad: Int)
+    extends Bundle {
+        val signal=proto
+        val zpad=UInt(zpad.W)
+        override def cloneType = (new memproto(proto.cloneType,zpad)).asInstanceOf[this.type]
+    }
+
 class f2_serdes_test[T <:Data] (
         proto            : T,
         n                : Int=16,
@@ -85,10 +92,12 @@ class f2_serdes_test[T <:Data] (
     // We zpad the output in order to get MULTIPLE OF 37 which
     // is one of the memory output widths available
     // users*((16I+16Q)+4userindex)+2rxindex+14=592=16*37
-    val mem = Module (new memblock(proto,memsize=memsize,zpad=14)).io
+    val memproto= new memproto(proto=proto.cloneType, zpad=14)
+    val mem = Module (new memblock(proto=memproto.cloneType,memsize=memsize)).io
     //Defaults
+    mem.write_val.zpad:=0.U.asTypeOf(mem.write_val.zpad.cloneType)
     mem.write_en:=false.B
-    mem.write_val:=iofifozero
+    mem.write_val.signal:=iofifozero
     mem.write_addr:=0.U.asTypeOf(mem.write_addr)
     mem.read_addr:=0.U.asTypeOf(mem.read_addr)
 
@@ -151,7 +160,7 @@ class f2_serdes_test[T <:Data] (
         when( io.scan.write_en===true.B) {
             mem.write_en:=true.B
             mem.write_addr:=io.scan.write_address
-            mem.write_val:=io.scan.write_value
+            mem.write_val.signal:=io.scan.write_value
         }
         when ( w_write_mode === scan ){
             write_state:=scan
@@ -163,7 +172,7 @@ class f2_serdes_test[T <:Data] (
         when ( (write_count < memsize) && infifo.deq.valid===true.B ) {
             mem.write_en:=true.B
             mem.write_addr:=write_count
-            mem.write_val:=infifo.deq.bits
+            mem.write_val.signal:=infifo.deq.bits
             when ( write_count === memsize.asUInt-1.U) {
                 write_count:=0.U
                 write_state:=zero
@@ -192,18 +201,18 @@ class f2_serdes_test[T <:Data] (
                 when(write_count === memsize.asUInt-1.U) { 
                     outfifo.enq.valid:=RegNext(RegNext(true.B))
                     mem.read_addr:=write_count-1.U
-                    outfifo.enq.bits:=mem.read_val
+                    outfifo.enq.bits:=mem.read_val.signal
                     mem.write_en:=true.B
                     mem.write_addr:=write_count
-                    mem.write_val:=infifo.deq.bits
+                    mem.write_val.signal:=infifo.deq.bits
                     write_count:=0.U
                 }.otherwise {
                     outfifo.enq.valid:=RegNext(RegNext(true.B))
                     mem.read_addr:=write_count-1.U
-                    outfifo.enq.bits:=mem.read_val
+                    outfifo.enq.bits:=mem.read_val.signal
                     mem.write_en:=true.B
                     mem.write_addr:=write_count
-                    mem.write_val:=infifo.deq.bits
+                    mem.write_val.signal:=infifo.deq.bits
                     write_count:=write_count+1.U
                 }
             }.otherwise {
@@ -212,10 +221,10 @@ class f2_serdes_test[T <:Data] (
                 // changing w_write_state
                 outfifo.enq.valid:=RegNext(RegNext(true.B))
                 mem.read_addr:=write_count-1.U
-                outfifo.enq.bits:=mem.read_val
+                outfifo.enq.bits:=mem.read_val.signal
                 mem.write_en:=true.B
                 mem.write_addr:=write_count
-                mem.write_val:=infifo.deq.bits
+                mem.write_val.signal:=infifo.deq.bits
                 write_count:=write_count
             }
         }.otherwise {
@@ -226,12 +235,12 @@ class f2_serdes_test[T <:Data] (
                 when(write_count === memsize.asUInt-1.U) { 
                     mem.write_en:=true.B
                     mem.write_addr:=write_count
-                    mem.write_val:=infifo.deq.bits
+                    mem.write_val.signal:=infifo.deq.bits
                     write_count:=0.U
                 }.otherwise {
                     mem.write_en:=true.B
                     mem.write_addr:=write_count
-                    mem.write_val:=infifo.deq.bits
+                    mem.write_val.signal:=infifo.deq.bits
                     write_count:=write_count+1.U
                 }
             }.otherwise {
@@ -291,7 +300,7 @@ class f2_serdes_test[T <:Data] (
     }.elsewhen(read_state===scan) {
         when( io.scan.read_en===true.B) {
             mem.read_addr:=io.scan.read_address
-            io.scan.read_value:=mem.read_val
+            io.scan.read_value:=mem.read_val.signal
         }
         when (w_read_mode === scan) {
             read_state:=scan
@@ -306,13 +315,13 @@ class f2_serdes_test[T <:Data] (
             when ( read_count === memsize.asUInt-1.U ) {
                 mem.read_addr:=read_count
                 outfifo.enq.valid:=RegNext(RegNext(true.B))
-                outfifo.enq.bits :=mem.read_val
+                outfifo.enq.bits :=mem.read_val.signal
                 read_count:=0.U
                 read_state:=zero
             }.otherwise{
                 mem.read_addr:=read_count
                 outfifo.enq.valid:=RegNext(RegNext(true.B))
-                outfifo.enq.bits :=mem.read_val
+                outfifo.enq.bits :=mem.read_val.signal
                 read_count:=read_count+1.U
                 read_state:=flush
             }
@@ -337,12 +346,12 @@ class f2_serdes_test[T <:Data] (
                 when ( read_count === memsize.asUInt-1.U ) {
                     mem.read_addr:=read_count
                     outfifo.enq.valid:=RegNext(RegNext(true.B))
-                    outfifo.enq.bits :=mem.read_val
+                    outfifo.enq.bits :=mem.read_val.signal
                     read_count:=0.U
                 }.otherwise {
                     mem.read_addr:=read_count
                     outfifo.enq.valid:=RegNext(RegNext(true.B))
-                    outfifo.enq.bits :=mem.read_val
+                    outfifo.enq.bits :=mem.read_val.signal
                     read_count:=read_count+1.U
                 }
             }.otherwise {
