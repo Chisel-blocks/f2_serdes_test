@@ -37,7 +37,7 @@ class f2_serdes_test_io[T <: Data](
 class memproto[ T <: Data](proto: T, val zpad: Int)
     extends Bundle {
         val signal=proto
-        val zpad=UInt(zpad.W)
+        val zeros=UInt(zpad.W)
         override def cloneType = (new memproto(proto.cloneType,zpad)).asInstanceOf[this.type]
     }
 
@@ -95,7 +95,7 @@ class f2_serdes_test[T <:Data] (
     val memproto= new memproto(proto=proto.cloneType, zpad=14)
     val mem = Module (new memblock(proto=memproto.cloneType,memsize=memsize)).io
     //Defaults
-    mem.write_val.zpad:=0.U.asTypeOf(mem.write_val.zpad.cloneType)
+    mem.write_val.zeros:=0.U.asTypeOf(mem.write_val.zeros.cloneType)
     mem.write_en:=false.B
     mem.write_val.signal:=iofifozero
     mem.write_addr:=0.U.asTypeOf(mem.write_addr)
