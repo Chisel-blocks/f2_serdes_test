@@ -37,7 +37,7 @@ class f2_serdes_test_io[T <: Data](
 class memproto[ T <: Data](proto: T, val zpad: Int)
     extends Bundle {
         val signal=proto
-        val zeros=UInt(zpad.W)
+        val zeros= UInt(zpad.W)
         override def cloneType = (new memproto(proto.cloneType,zpad)).asInstanceOf[this.type]
     }
 
@@ -92,7 +92,8 @@ class f2_serdes_test[T <:Data] (
     // We zpad the output in order to get MULTIPLE OF 37 which
     // is one of the memory output widths available
     // users*((16I+16Q)+4userindex)+2rxindex+14=592=16*37
-    val memproto= new memproto(proto=proto.cloneType, zpad=14)
+    val zpad=14
+    val memproto= new memproto(proto=proto.cloneType, zpad=zpad)
     val mem = Module (new memblock(proto=memproto.cloneType,memsize=memsize)).io
     //Defaults
     mem.write_val.zeros:=0.U.asTypeOf(mem.write_val.zeros.cloneType)
